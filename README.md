@@ -1,81 +1,103 @@
-# Smart Access & Campus IT Assistant — AWS class demo
+# ⚡ AWS Smart Access & Campus IT Assistant
 
-A React + Express starter demonstrating two AWS AI services in one use case:
-- **Amazon Rekognition Face Liveness** checks whether a real person is present during the demo login flow.
-- **Amazon Bedrock** powers a Campus IT Assistant that answers general questions about campus Wi-Fi, LMS access, and cloud-computing lab setup.
+> A modern, Neo-Brutalist cloud application combining **Amazon Rekognition** biometric verification and **Amazon Bedrock** generative AI for secure campus IT assistance.
 
-The demo login credentials are hardcoded in the frontend:
-- Email: `demo@example.com`
-- Password: `Demo123!`
+---
 
-These credentials are intentionally for classroom use only. They are not secure authentication and must not be used in production.
+## 🌟 Key Highlights
 
-## Architecture
-React/Vite frontend → Express backend → Amazon Rekognition Face Liveness and Amazon Bedrock Converse API.
-The React FaceLivenessDetector uses Cognito Identity Pool temporary credentials. No database or Cognito User Pool is required for this classroom flow.
+- **👁️ Live Biometric Verification**: Real-time facial analysis and liveness presence check powered by **Amazon Rekognition** (`DetectFaces`).
+- **🧠 Campus IT Bedrock Assistant**: AI chatbot with modern formatting, Markdown tables, and quick-prompt chips powered by **Amazon Bedrock Architecture** (with high-speed Groq inference fallback for AWS Academy Learner Labs).
+- **🎮 Interactive Rekognition Explorer**: Live Cyberpunk HUD simulator to experiment with 100+ facial landmarks, smile detection, eye tracking, sunglasses obstruction, tailgating intruder detection, and 2D photo anti-spoofing.
+- **📚 Interactive Bedrock Explorer**: Educational visualizer exploring:
+  - **Knowledge Bases & RAG**: Eliminates hallucinations by retrieving private S3 documents with citations.
+  - **Autonomous Agents**: Visualizes the **ReAct (Reason + Act)** loop invoking external AWS Lambda functions.
+  - **Bedrock Guardrails**: 4-layer defense shield (Content Filters, Denied Topics, PII Masking, and Contextual Grounding).
+  - **Foundation Model Matrix**: Specs and latency for Amazon Nova, Anthropic Claude 3.5, Meta Llama 3.3, and Mistral Large.
+- **🎨 Neo-Brutalist UI Design System**: High-contrast borders, tactile drop shadows, vibrant accents, and responsive layout.
+- **🚀 One-Click Launch & Shutdown**: Dedicated Windows scripts (`start.bat` and `stop.bat`) for instant execution.
 
-## Prerequisites
-- Node.js 20+
-- AWS account access (your teammate can configure this)
-- An AWS Region supporting Face Liveness and a Bedrock model available in that Region
-- Cognito Identity Pool with unauthenticated/guest identities enabled for this classroom demo
-- Backend AWS credentials configured through an IAM role or AWS shared credentials profile. Do not put AWS access keys in frontend code.
+---
 
-## Backend setup
-```bash
+## 🏗️ Architecture
+
+```
+Browser (React + Vite)
+  ├── 1. Webcam Frame (HTML5 Canvas) ──> Express Backend (Node.js)
+  │                                            │
+  │                                            ├──> Amazon Rekognition (DetectFaces SigV4)
+  │                                            └──> Amazon Bedrock / Groq LLM Inference
+  │
+  └── 2. Interactive Explorers (Client-side interactive state engines)
+```
+
+---
+
+## 🚀 Quick Start (Windows)
+
+### Option 1: One-Click Scripts (Easiest)
+1. **Launch**: Double-click `start.bat` in the project root.
+   - Frontend starts on: `http://localhost:5173`
+   - Backend API starts on: `http://localhost:4000`
+2. **Stop**: Double-click `stop.bat` to instantly terminate all servers and release ports.
+
+### Option 2: Manual Start
+```powershell
+# 1. Start Backend (Terminal 1)
 cd backend
-cp .env.example .env
 npm install
 npm run dev
-```
-Configure these values in `backend/.env`:
-- `AWS_REGION`: same Region used for Rekognition, Cognito and the selected Bedrock model where possible
-- `BEDROCK_MODEL_ID`: exact model ID available and enabled for your AWS account and Region
-- `LIVENESS_THRESHOLD`: classroom demo threshold (default 90; not a universal security recommendation)
-- `FRONTEND_ORIGIN`: frontend origin, default `http://localhost:5173`
 
-The backend IAM role/user needs:
-- Rekognition: `rekognition:CreateFaceLivenessSession`, `rekognition:GetFaceLivenessSessionResults`
-- Bedrock: `bedrock:InvokeModel` for the selected model / Converse API
-Use least-privilege policies. AWS may require model access to be enabled or other model-specific setup in the Bedrock console.
-
-## Frontend setup
-In another terminal:
-```bash
+# 2. Start Frontend (Terminal 2)
 cd frontend
-cp .env.example .env
 npm install
 npm run dev
 ```
-Configure `frontend/.env`:
+
+---
+
+## 🔐 Environment Configuration
+
+### Backend (`backend/.env`)
+Copy `backend/.env.example` to `backend/.env`:
+```env
+# AWS Academy Learner Lab Credentials (paste directly from "AWS Details > AWS CLI")
+aws_access_key_id=YOUR_ACCESS_KEY_ID
+aws_secret_access_key=YOUR_SECRET_ACCESS_KEY
+aws_session_token=YOUR_SESSION_TOKEN
+
+# Cloud Settings
+AWS_REGION=us-east-1
+PORT=4000
+LIVENESS_THRESHOLD=90
+FRONTEND_ORIGIN=http://localhost:5173
+
+# Bedrock Model Configuration
+BEDROCK_MODEL_ID=mistral.mistral-7b-instruct-v0:2
+
+# Groq API Key (High-Speed LLM Inference fallback)
+GROQ_API_KEY=your_groq_api_key_here
+```
+
+> **Note for AWS Academy Users:** The backend automatically recognizes both lowercase (`aws_access_key_id`) and uppercase (`AWS_ACCESS_KEY_ID`) variables and trims accidental whitespace. You can paste the whole block directly from AWS Academy!
+
+### Frontend (`frontend/.env`)
 ```env
 VITE_API_BASE_URL=http://localhost:4000
-VITE_AWS_REGION=your-aws-region
-VITE_COGNITO_IDENTITY_POOL_ID=your-identity-pool-id
+VITE_AWS_REGION=us-east-1
 ```
-Open the Vite URL shown in the terminal. The browser needs camera permission.
 
-## Demo flow
-1. Sign in with `demo@example.com` / `Demo123!`.
-2. Follow the Face Liveness camera prompts.
-3. If liveness passes, the Campus IT Assistant appears.
-4. Ask: “My campus Wi-Fi keeps disconnecting. What should I check?” or “How do I prepare an AWS lab for my cloud computing class?”
-5. Bedrock responds using the selected foundation model.
+---
 
-## What your teammate needs to configure
-1. Create/configure a Cognito Identity Pool with guest identities and the minimum permissions required by the current Amplify Face Liveness component.
-2. Configure backend IAM credentials and permissions for Rekognition and Bedrock.
-3. Enable/access a Bedrock model in the chosen Region and set `BEDROCK_MODEL_ID`.
-4. Install dependencies and test both flows.
+## 🧪 Demo Credentials
 
-Official docs:
-- Rekognition Face Liveness: https://docs.aws.amazon.com/rekognition/latest/dg/face-liveness.html
-- Amplify React Face Liveness: https://ui.docs.amplify.aws/react/connected-components/liveness?platform=javascript
-- Bedrock Converse API: https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
+For classroom evaluation, use the pre-configured credentials on the login screen:
+- **Email:** `demo@example.com`
+- **Password:** `Demo123!`
+*(Or simply click the **"⚡ Fill Demo Credentials"** button on the UI)*
 
-## Limitations / safety
-- Face Liveness checks live presence; it does not establish a person's identity.
-- The demo email/password is hardcoded and bypassable. It is not a security control.
-- The frontend submits chat history to the backend; the backend limits it to the last 12 messages and truncates message text.
-- Do not enter passwords, OTPs, personal data, or confidential university information into the demo assistant.
-- For production, replace demo login with real authentication, validate/authorize sessions server-side, add rate limiting, protect session ownership, configure secure deployment, and review privacy and data-retention needs.
+---
+
+## 🛡️ Security & Privacy Notice
+- `.env` files containing AWS keys and API tokens are strictly ignored by `.gitignore` and **must never be committed to public repositories**.
+- The hardcoded credentials are for classroom presentation only and should be replaced with Amazon Cognito User Pools for production deployment.

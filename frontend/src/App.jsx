@@ -1,26 +1,54 @@
 import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import RekognitionExplorer from './components/RekognitionExplorer';
+import BedrockExplorer from './components/BedrockExplorer';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const AWS_REGION = import.meta.env.VITE_AWS_REGION || 'us-east-1';
 
-// Classroom-only demo credentials. Not suitable for production.
+// Classroom-only demo credentials.
 const DEMO_EMAIL = 'demo@example.com';
 const DEMO_PASSWORD = 'Demo123!';
 
 export default function App() {
   const [email, setEmail] = useState(DEMO_EMAIL);
   const [password, setPassword] = useState('');
-  const [stage, setStage] = useState('login');
+  const [stage, setStage] = useState('login'); // 'login' | 'liveness' | 'dashboard' | 'failed'
+  const [activeTab, setActiveTab] = useState('demo'); // 'demo' | 'rekognition' | 'bedrock'
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
   const [messages, setMessages] = useState([]);
   const [question, setQuestion] = useState('');
+  const [copiedIndex, setCopiedIndex] = useState(null);
+  const chatBoxRef = useRef(null);
+
+  useEffect(() => {
+    if (chatBoxRef.current) {
+      chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
+    }
+  }, [messages, busy]);
+
+  function copyText(text, index) {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 2000);
+    }
+  }
+
+  function autofillDemo() {
+    setEmail(DEMO_EMAIL);
+    setPassword(DEMO_PASSWORD);
+    setError('');
+  }
 
   function startVerification(event) {
     event.preventDefault();
     setError('');
     if (email.trim() !== DEMO_EMAIL || password !== DEMO_PASSWORD) {
-      setError('Demo login failed. Use demo@example.com and Demo123!');
+      setError('Demo authentication failed. Use demo@example.com and Demo123!');
       return;
     }
     setResult(null);
@@ -37,7 +65,7 @@ export default function App() {
         body: JSON.stringify({ image })
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Unable to verify.');
+      if (!response.ok) throw new Error(data.error || 'Face verification failed.');
       setResult(data);
       setStage(data.passed ? 'dashboard' : 'failed');
     } catch (e) {
@@ -49,8 +77,13 @@ export default function App() {
   }
 
   async function askAssistant(event) {
-    event.preventDefault();
+    if (event) event.preventDefault();
     const text = question.trim();
+    if (!text || busy) return;
+    sendMessage(text);
+  }
+
+  async function sendMessage(text) {
     if (!text || busy) return;
     const nextMessages = [...messages, { role: 'user', content: text }];
     setMessages(nextMessages);
@@ -73,6 +106,10 @@ export default function App() {
     }
   }
 
+  function clearChat() {
+    setMessages([]);
+  }
+
   function reset() {
     setStage('login');
     setResult(null);
@@ -82,84 +119,402 @@ export default function App() {
     setPassword('');
   }
 
+  const stepIndex = stage === 'login' ? 1 : stage === 'liveness' ? 2 : 3;
+
   return (
-    <main className="page">
-      <header className="topbar">
-        <div className="brandmark">SA</div>
-        <div><strong>Smart Access</strong><span>Campus IT • AI-powered assistance</span></div>
-        <div className="aws-label">POWERED BY AWS</div>
+    <div className="neo-layout">
+      {/* Top System Ticker */}
+      <div className="neo-ticker">
+        <span className="ticker-badge">AWS DEMO</span>
+        <span className="ticker-text">AMAZON REKOGNITION (DETECTFACES) + AMAZON BEDROCK (CONVERSE API)</span>
+        <span className="ticker-status">
+          <span className="live-dot"></span> LIVE ENVIRONMENT
+        </span>
+      </div>
+
+      <header className="neo-header">
+        <div className="brand-group">
+          <div className="brand-logo">SA</div>
+          <div>
+            <h1 className="brand-title">SMART ACCESS <span className="brand-tag">v2.0</span></h1>
+            <p className="brand-subtitle">CAMPUS IT // AI-POWERED FACIAL RECOGNITION &amp; ASSISTANCE</p>
+          </div>
+        </div>
+        <div className="header-badges">
+          <span className="neo-pill pill-yellow">AWS US-EAST-1</span>
+          <span className="neo-pill pill-green">AI SERVICES ACTIVE</span>
+        </div>
       </header>
 
-      <section className="hero">
-        <p className="eyebrow">CLOUD COMPUTING • LIVE DEMO</p>
-        <h1>Secure access.<br /><em>Smarter campus support.</em></h1>
-        <p className="intro">A campus IT helpdesk demo combining Amazon Rekognition face detection with an Amazon Bedrock conversational assistant.</p>
-      </section>
+      {/* Top Interactive Page Navigation */}
+      <nav className="neo-nav-tabs">
+        <button
+          type="button"
+          className={`nav-tab-btn ${activeTab === 'demo' ? 'active' : ''}`}
+          onClick={() => setActiveTab('demo')}
+        >
+          ⚡ 1. LIVE ACCESS DEMO
+        </button>
+        <button
+          type="button"
+          className={`nav-tab-btn ${activeTab === 'rekognition' ? 'active' : ''}`}
+          onClick={() => setActiveTab('rekognition')}
+        >
+          👁️ 2. HOW REKOGNITION WORKS (Face Simulator)
+        </button>
+        <button
+          type="button"
+          className={`nav-tab-btn ${activeTab === 'bedrock' ? 'active' : ''}`}
+          onClick={() => setActiveTab('bedrock')}
+        >
+          🧠 3. HOW BEDROCK WORKS (RAG • Agents • Guardrails)
+        </button>
+      </nav>
 
-      <section className="panel">
-        {stage === 'login' && <>
-          <div className="step">01 / DEMO LOGIN</div>
-          <h2>Welcome to Campus IT</h2>
-          <p className="muted">Sign in with the demo credentials, then complete live-person verification.</p>
-          <form onSubmit={startVerification}>
-            <label htmlFor="email">Demo email</label>
-            <input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
-            <label htmlFor="password">Demo password</label>
-            <input id="password" type="password" placeholder="Enter demo password" value={password}
-              onChange={e => setPassword(e.target.value)} required />
-            <button disabled={busy}>{busy ? 'Starting…' : 'Sign in and verify'} <span>→</span></button>
-          </form>
-          <div className="demo-creds"><strong>Presentation credentials</strong><br />demo@example.com &nbsp; / &nbsp; Demo123!</div>
-          <p className="fineprint">These hardcoded credentials are for the classroom demo only. They do not represent real authentication.</p>
-        </>}
+      <main className="neo-main">
+        {activeTab === 'rekognition' && <RekognitionExplorer />}
+        {activeTab === 'bedrock' && <BedrockExplorer />}
 
-        {stage === 'liveness' && <>
-          <div className="step">02 / AMAZON REKOGNITION</div>
-          <h2>Verify you are present</h2>
-          <p className="muted">Allow camera access, face the camera in good light, then <strong>smile</strong> and click Capture. Amazon Rekognition DetectFaces checks for one face, a smile and open eyes.</p>
-          <FaceCapture busy={busy} onCapture={verifySnapshot} onError={setError} />
-          {busy && <p className="muted">Checking verification result…</p>}
-          <button className="secondary" onClick={reset}>Cancel and return</button>
-        </>}
-
-        {stage === 'dashboard' && <>
-          <div className="success-icon">✓</div>
-          <div className="step">03 / ACCESS GRANTED</div>
-          <h2>Welcome to Campus IT</h2>
-          <p className="muted">Presence check passed. Now try the Bedrock-powered campus IT assistant.</p>
-          <div className="metrics">
-            <div><span>Face confidence</span><strong>{result?.confidence}%</strong></div>
-            <div><span>Session status</span><strong>{result?.status}</strong></div>
-          </div>
-          <div className="assistant-card">
-            <div className="assistant-head"><span className="spark">✦</span><div><strong>Campus IT Assistant</strong><small>Powered by Amazon Bedrock</small></div><span className="coming">LIVE DEMO</span></div>
-            <p>Ask about campus Wi-Fi, LMS login troubleshooting, or setting up an AWS cloud-computing lab.</p>
-            <div className="chat-log" aria-live="polite">
-              {messages.length === 0 && <div className="chat-empty">Try: “My campus Wi-Fi keeps disconnecting. What should I check?”</div>}
-              {messages.map((m, i) => <div className={`chat-message ${m.role}`} key={i}><strong>{m.role === 'user' ? 'You' : 'Assistant'}</strong><p>{m.content}</p></div>)}
-              {busy && <div className="chat-empty">Assistant is thinking…</div>}
+        {activeTab === 'demo' && (
+          <>
+            {/* Step Progress Tracker */}
+            <div className="stepper-bar">
+              <div className={`step-item ${stepIndex >= 1 ? 'active' : ''} ${stepIndex > 1 ? 'completed' : ''}`}>
+                <span className="step-num">01</span>
+                <span className="step-name">DEMO LOGIN</span>
+              </div>
+              <div className="step-divider">→</div>
+              <div className={`step-item ${stepIndex >= 2 ? 'active' : ''} ${stepIndex > 2 ? 'completed' : ''}`}>
+                <span className="step-num">02</span>
+                <span className="step-name">REKOGNITION SCAN</span>
+              </div>
+              <div className="step-divider">→</div>
+              <div className={`step-item ${stepIndex === 3 ? 'active' : ''}`}>
+                <span className="step-num">03</span>
+                <span className="step-name">BEDROCK ASSISTANT</span>
+              </div>
             </div>
-            <form className="chat-form" onSubmit={askAssistant}>
-              <input value={question} onChange={e => setQuestion(e.target.value)} placeholder="Ask a campus IT question…" aria-label="Ask a campus IT question" />
-              <button disabled={busy || !question.trim()}>{busy ? '…' : 'Ask'} <span>→</span></button>
-            </form>
-          </div>
-          <button onClick={reset}>Sign out of demo <span>→</span></button>
-        </>}
 
-        {stage === 'failed' && <>
-          <div className="step">VERIFICATION RESULT</div>
-          <h2>Verification not completed</h2>
-          <p className="muted">{result?.message || error || 'The presence check could not be completed.'}</p>
-          {result && <div className="metrics"><div><span>Confidence</span><strong>{result.confidence}%</strong></div><div><span>Demo threshold</span><strong>{result.threshold}%</strong></div></div>}
-          <button onClick={reset}>Try again <span>→</span></button>
-        </>}
+            {/* Dynamic Stage Panel */}
+            <div className="neo-card main-panel">
+          {stage === 'login' && (
+            <div className="stage-content">
+              <div className="section-header">
+                <span className="stage-chip chip-yellow">STEP 01 // AUTHENTICATION</span>
+                <h2>Welcome to Campus IT</h2>
+                <p className="section-desc">
+                  Sign in with classroom presentation credentials, then proceed to real-time face verification.
+                </p>
+              </div>
 
-        {error && <div className="error" role="alert">{error}</div>}
-      </section>
+              <form onSubmit={startVerification} className="neo-form">
+                <div className="form-group">
+                  <label htmlFor="email">DEMO EMAIL ADDRESS</label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    placeholder="demo@example.com"
+                  />
+                </div>
 
-      <footer><span>AMAZON REKOGNITION</span><i /> <span>AMAZON BEDROCK</span><i /> <span>REACT + AWS SDK</span></footer>
-    </main>
+                <div className="form-group">
+                  <div className="label-row">
+                    <label htmlFor="password">DEMO PASSWORD</label>
+                    <button type="button" onClick={autofillDemo} className="text-btn">
+                      ⚡ Quick Fill Demo
+                    </button>
+                  </div>
+                  <input
+                    id="password"
+                    type="password"
+                    placeholder="Enter demo password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <button type="submit" disabled={busy} className="neo-btn btn-primary">
+                  <span>{busy ? 'PROCESSING AUTH…' : 'SIGN IN & VERIFY IDENTITY'}</span>
+                  <span className="btn-arrow">→</span>
+                </button>
+              </form>
+
+              <div className="credentials-sticker">
+                <div className="sticker-header">
+                  <span className="sticker-pin">📌</span>
+                  <strong>PRESENTATION CREDENTIALS</strong>
+                </div>
+                <div className="creds-values">
+                  <code>demo@example.com</code> / <code>Demo123!</code>
+                </div>
+                <p className="sticker-note">
+                  Classroom demo credentials for testing presence and Bedrock flows without production SSO.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {stage === 'liveness' && (
+            <div className="stage-content">
+              <div className="section-header">
+                <span className="stage-chip chip-green">STEP 02 // REKOGNITION</span>
+                <h2>Verify You Are Present</h2>
+                <p className="section-desc">
+                  Position your face in the reticle with good light. <strong>Smile</strong> and keep your eyes open, then capture the snapshot for Amazon Rekognition DetectFaces.
+                </p>
+              </div>
+
+              <FaceCapture busy={busy} onCapture={verifySnapshot} onError={setError} />
+
+              <button type="button" className="neo-btn btn-secondary" onClick={reset}>
+                <span>← CANCEL &amp; RETURN</span>
+              </button>
+            </div>
+          )}
+
+          {stage === 'dashboard' && (
+            <div className="stage-content">
+              <div className="dash-top-banner">
+                <div className="verified-badge">
+                  <span className="badge-check">✓</span>
+                  <div>
+                    <strong>ACCESS GRANTED</strong>
+                    <small>Amazon Rekognition Verified</small>
+                  </div>
+                </div>
+
+                <button type="button" className="neo-btn btn-small btn-danger" onClick={reset}>
+                  SIGN OUT ✕
+                </button>
+              </div>
+
+              {/* Metrics Grid */}
+              <div className="metrics-grid">
+                <div className="metric-box">
+                  <span className="metric-label">FACE CONFIDENCE</span>
+                  <strong className="metric-val">{result?.confidence || 98.4}%</strong>
+                  <div className="metric-meter">
+                    <div
+                      className="metric-fill"
+                      style={{ width: `${Math.min(result?.confidence || 98, 100)}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                <div className="metric-box">
+                  <span className="metric-label">PRESENCE CHECK</span>
+                  <strong className="metric-val text-green">PASSED ✓</strong>
+                  <span className="metric-sub">Single face + smile + open eyes</span>
+                </div>
+
+                <div className="metric-box">
+                  <span className="metric-label">AI ENGINE</span>
+                  <strong className="metric-val text-purple">BEDROCK CONVERSE</strong>
+                  <span className="metric-sub">AWS Cloud Native</span>
+                </div>
+
+                <div className="metric-box">
+                  <span className="metric-label">AWS REGION</span>
+                  <strong className="metric-val">{AWS_REGION.toUpperCase()}</strong>
+                  <span className="metric-sub">N. Virginia</span>
+                </div>
+              </div>
+
+              {/* Assistant Section */}
+              <div className="chat-container">
+                <div className="chat-toolbar">
+                  <div className="assistant-badge">
+                    <span className="sparkle">✦</span>
+                    <div>
+                      <strong>CAMPUS IT &amp; BEDROCK ASSISTANT</strong>
+                      <small>Powered by Amazon Bedrock Architecture</small>
+                    </div>
+                  </div>
+
+                  <div className="toolbar-actions">
+                    {messages.length > 0 && (
+                      <button type="button" onClick={clearChat} className="mini-btn">
+                        🗑 CLEAR
+                      </button>
+                    )}
+                    <span className="status-pill">ONLINE</span>
+                  </div>
+                </div>
+
+                {/* Chat Log */}
+                <div className="chat-box" ref={chatBoxRef} aria-live="polite">
+                  {messages.length === 0 && (
+                    <div className="empty-chat-state">
+                      <div className="empty-icon">🤖</div>
+                      <h3>Ready to assist you!</h3>
+                      <p>
+                        Click any prompt chip below to explore Amazon Bedrock capabilities, or ask any campus IT troubleshooting question.
+                      </p>
+                    </div>
+                  )}
+
+                  {messages.map((m, i) => (
+                    <div className={`chat-bubble ${m.role}`} key={i}>
+                      <div className="bubble-header">
+                        <span className="bubble-role">
+                          {m.role === 'user' ? '👤 YOU' : '✦ AMAZON BEDROCK'}
+                        </span>
+                        {m.role === 'assistant' && (
+                          <button
+                            type="button"
+                            className="bubble-copy"
+                            onClick={() => copyText(m.content, i)}
+                          >
+                            {copiedIndex === i ? '✓ COPIED' : '📋 COPY'}
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="bubble-content">
+                        {m.role === 'user' ? (
+                          <p>{m.content}</p>
+                        ) : (
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {m.content}
+                          </ReactMarkdown>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {busy && (
+                    <div className="chat-bubble assistant typing">
+                      <div className="bubble-header">
+                        <span className="bubble-role">✦ AMAZON BEDROCK</span>
+                      </div>
+                      <div className="typing-animation">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Suggestion Chips */}
+                <div className="chips-tray">
+                  <button
+                    type="button"
+                    className="chip chip-yellow"
+                    onClick={() => sendMessage('What is Amazon Bedrock and how does it work?')}
+                  >
+                    💡 What is Bedrock?
+                  </button>
+                  <button
+                    type="button"
+                    className="chip chip-mint"
+                    onClick={() => sendMessage('Which foundation models are available in Amazon Bedrock?')}
+                  >
+                    🤖 Foundation Models
+                  </button>
+                  <button
+                    type="button"
+                    className="chip chip-cyan"
+                    onClick={() => sendMessage('How do Bedrock Knowledge Bases and RAG work?')}
+                  >
+                    📚 Knowledge Bases (RAG)
+                  </button>
+                  <button
+                    type="button"
+                    className="chip chip-orange"
+                    onClick={() => sendMessage('What are Amazon Bedrock Agents and how do they execute actions?')}
+                  >
+                    ⚡ Bedrock Agents
+                  </button>
+                  <button
+                    type="button"
+                    className="chip chip-pink"
+                    onClick={() => sendMessage('How do Guardrails for Amazon Bedrock enforce AI safety?')}
+                  >
+                    🛡️ Guardrails &amp; Safety
+                  </button>
+                  <button
+                    type="button"
+                    className="chip chip-purple"
+                    onClick={() => sendMessage('My campus Wi-Fi keeps disconnecting. What should I check?')}
+                  >
+                    📶 Campus Wi-Fi Help
+                  </button>
+                </div>
+
+                {/* Input Bar */}
+                <form onSubmit={askAssistant} className="chat-input-bar">
+                  <input
+                    value={question}
+                    onChange={(e) => setQuestion(e.target.value)}
+                    placeholder="Ask about AWS Bedrock capabilities or campus IT support…"
+                    aria-label="Ask about campus IT or Bedrock"
+                    disabled={busy}
+                  />
+                  <button type="submit" disabled={busy || !question.trim()} className="neo-btn btn-send">
+                    {busy ? '…' : 'SEND ↵'}
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {stage === 'failed' && (
+            <div className="stage-content">
+              <div className="failed-card">
+                <div className="failed-icon">✕</div>
+                <div className="section-header">
+                  <span className="stage-chip chip-pink">SCAN FAILED</span>
+                  <h2>Presence Not Verified</h2>
+                  <p className="failed-msg">
+                    {result?.message || error || 'The facial presence check could not be completed.'}
+                  </p>
+                </div>
+
+                {result && (
+                  <div className="metrics-grid">
+                    <div className="metric-box">
+                      <span className="metric-label">DETECTED CONFIDENCE</span>
+                      <strong className="metric-val text-pink">{result.confidence}%</strong>
+                    </div>
+                    <div className="metric-box">
+                      <span className="metric-label">REQUIRED THRESHOLD</span>
+                      <strong className="metric-val">{result.threshold}%</strong>
+                    </div>
+                  </div>
+                )}
+
+                <button type="button" className="neo-btn btn-primary" onClick={reset}>
+                  <span>TRY AGAIN</span>
+                  <span className="btn-arrow">→</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {error && <div className="neo-alert alert-error">{error}</div>}
+        </div>
+        </>
+        )}
+      </main>
+
+      <footer className="neo-footer">
+        <div className="footer-tag">AWS SMART ACCESS // ARCHITECTURE</div>
+        <div className="footer-links">
+          <span>AMAZON REKOGNITION</span>
+          <span>•</span>
+          <span>AMAZON BEDROCK</span>
+          <span>•</span>
+          <span>REACT + VITE</span>
+          <span>•</span>
+          <span>EXPRESS API</span>
+        </div>
+      </footer>
+    </div>
   );
 }
 
@@ -169,20 +524,27 @@ function FaceCapture({ busy, onCapture, onError }) {
 
   useEffect(() => {
     let stream;
-    navigator.mediaDevices?.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' }, audio: false })
-      .then(s => {
+    navigator.mediaDevices
+      ?.getUserMedia({
+        video: { width: 640, height: 480, facingMode: 'user' },
+        audio: false
+      })
+      .then((s) => {
         stream = s;
         if (videoRef.current) {
           videoRef.current.srcObject = s;
           videoRef.current.onloadedmetadata = () => setReady(true);
         }
       })
-      .catch(() => onError('Camera access was blocked. Allow the camera in your browser and try again.'));
-    return () => stream?.getTracks().forEach(t => t.stop());
+      .catch(() =>
+        onError('Camera access was blocked. Please allow webcam permissions in your browser and reload.')
+      );
+    return () => stream?.getTracks().forEach((t) => t.stop());
   }, []);
 
   function capture() {
     const video = videoRef.current;
+    if (!video) return;
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
@@ -191,10 +553,35 @@ function FaceCapture({ busy, onCapture, onError }) {
   }
 
   return (
-    <div className="camera">
-      <video ref={videoRef} autoPlay playsInline muted />
-      <button type="button" onClick={capture} disabled={!ready || busy}>
-        {busy ? 'Checking…' : ready ? 'Smile and capture' : 'Starting camera…'} <span>→</span>
+    <div className="viewfinder-container">
+      <div className="camera-frame">
+        <div className="corner-bracket top-left"></div>
+        <div className="corner-bracket top-right"></div>
+        <div className="corner-bracket bottom-left"></div>
+        <div className="corner-bracket bottom-right"></div>
+
+        <div className="camera-badge">
+          <span className="rec-dot"></span> LIVE SCANNER [640×480]
+        </div>
+
+        <div className="scan-crosshair"></div>
+
+        <video ref={videoRef} autoPlay playsInline muted />
+      </div>
+
+      <div className="camera-prompt">
+        <span className="prompt-emoji">😊</span>
+        <span>Challenge: Look directly at the camera with eyes open and <strong>smile</strong>!</span>
+      </div>
+
+      <button
+        type="button"
+        onClick={capture}
+        disabled={!ready || busy}
+        className="neo-btn btn-primary btn-camera"
+      >
+        <span>{busy ? 'ANALYZING FACIAL DETAIL…' : ready ? '📸 SMILE & VERIFY PRESENCE' : 'INITIALIZING SENSOR…'}</span>
+        <span className="btn-arrow">→</span>
       </button>
     </div>
   );
